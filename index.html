@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<title>手机 Python 程序</title>
+<style>
+:root{
+  --fs:15px;
+  --lh:22px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono","Courier New",monospace;
+  /* 纯白 + 淡色系（IDLE 风格） */
+  --bg:#FFFFFF;      /* 页面主背景 */
+  --bg2:#F9FAFB;     /* 面板 / 卡片 */
+  --bg3:#F3F4F6;     /* 悬停 / 输出面板底 */
+  --line:#E5E7EB;    /* 边框 / 分割线 */
+  --fg:#333333;      /* 正文 */
+  --dim:#9CA3AF;     /* 次要文字（行号 / 状态栏） */
+  --teal:#14B8A6;    /* 主强调色 */
+  --teal-d:#0D9488;  /* 主强调-激活 / 关键字 / 输入回显 */
+  --violet:#A78BFA;  /* 次强调色 */
+  --aux-y:#FDE68A;   /* 辅助黄（点缀） */
+  --aux-p:#F9A8D4;   /* 辅助粉（点缀） */
+  --outbg:#F3F4F6;   /* 输出面板底 */
+  --err:#DC2626;     /* 错误提示 */
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+/* 按钮：白底 + 淡青边框 + 深灰字；激活时淡青底 + 白字 */
+button{font:inherit;font-size:13px;color:var(--fg);background:#FFFFFF;border:1px solid var(--teal);
+  border-radius:4px;padding:6px 10px;cursor:pointer;touch-action:manipulation;white-space:nowrap;
+  transition:background .12s linear,color .12s linear,border-color .12s linear}
+button:active{background:var(--teal);border-color:var(--teal-d);color:#FFFFFF}
+button.primary{background:#FFFFFF;border-color:var(--teal);color:var(--teal-d)}
+button.primary:active{background:var(--teal-d);border-color:var(--teal-d);color:#FFFFFF}
+button.save{background:#FFFFFF;border-color:var(--violet);color:#7C3AED}
+button.save:active{background:var(--violet);border-color:var(--violet);color:#FFFFFF}
+button:disabled{opacity:.5}
+/* ---------- 顶栏 ---------- */
+header{flex:none;display:flex;align-items:center;gap:5px;padding:6px 7px;background:var(--bg2);border-bottom:1px solid var(--line)}
+#btnMenu,#btnSym{padding:6px 8px}
+#btnRun,#btnRunSave{font-size:12px;padding:6px 8px}
+#fname{flex:1;min-width:0;font-size:13.5px;font-weight:600;text-align:center;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;padding:4px 2px;color:var(--fg)}
+#statusbar{flex:none;padding:2px 10px;font-size:11.5px;color:var(--dim);background:var(--bg2);
+  border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:18px}
+#statusbar.ok{color:#059669} #statusbar.warn{color:#B45309} #statusbar.err{color:var(--err)}
+/* ---------- 编辑区（白底，行号浅灰） ---------- */
+#editwrap{flex:1;display:flex;min-height:0;overflow:hidden;background:#FFFFFF}
+#gutter{flex:none;width:4ch;overflow:hidden;background:#FFFFFF;border-right:1px solid var(--line)}
+#ginner{padding:8px 6px 40px 0;font-family:var(--mono);font-size:calc(var(--fs) * .82);
+  line-height:var(--lh);color:var(--dim);text-align:right;white-space:pre;will-change:transform}
+#edbox{flex:1;position:relative;min-width:0}
+#hlbox{position:absolute;inset:0;overflow:hidden}
+#hl{margin:0;padding:8px 10px 40px;min-width:100%;width:max-content;
+  font-family:var(--mono);font-size:var(--fs);line-height:var(--lh);white-space:pre;tab-size:4;
+  font-variant-ligatures:none;will-change:transform}
+#ed{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:8px 10px 40px;border:0;outline:0;resize:none;
+  background:transparent;color:transparent;caret-color:var(--teal-d);overflow:auto;
+  font-family:var(--mono);font-size:var(--fs);line-height:var(--lh);white-space:pre;tab-size:4;
+  font-variant-ligatures:none}
+#ed::selection{background:rgba(20,184,166,.22)}
+/* 语法着色（严格按色板） */
+.k1{color:#0D9488}   /* 关键字 def class import return ... 深青 */
+.k2{color:#0D9488}   /* 关键字 if for while try ... 深青 */
+.kc{color:#7C3AED}   /* self cls 深紫 */
+.kbool{color:#D97706}/* True False None 深橙 */
+.bi{color:#7C3AED}   /* 内置函数 print len range ... 深紫 */
+.fn{color:#7C3AED}   /* 类名调用 深紫 */
+.fn-user{color:#2563EB;font-weight:600} /* 自定义函数：亮蓝加粗 */
+.st{color:#D97706}   /* 字符串 深橙 */
+.nu{color:#059669}   /* 数字 深绿 */
+.cm{color:#9CA3AF;font-style:italic} /* 注释 灰 */
+.op{color:#333333}   /* 运算符 */
+/* ---------- 报错 / 候选条 ---------- */
+#errbar{flex:none;display:none;padding:4px 10px;font-size:11.5px;line-height:1.5;color:var(--err);
+  background:#FEF2F2;border-top:1px solid var(--line);border-left:3px solid var(--aux-p);
+  max-height:66px;overflow:auto;white-space:pre-wrap}
+#errbar.show{display:block}
+#candbar{flex:none;display:none;gap:6px;padding:5px 8px;background:var(--bg3);border-top:1px solid var(--line);
+  overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+#candbar.show{display:block}
+#candbar button{margin-right:6px;padding:5px 9px;border-radius:12px;background:#FFFFFF;border-color:var(--line);
+  font-family:var(--mono);font-size:13px}
+#candbar button.snip{background:var(--aux-y);border-color:#F5D77E;color:var(--fg)}
+/* ---------- 符号栏（白底 + 淡紫边框，按下淡紫底白字） ---------- */
+#symbar{flex:none;background:var(--bg2);border-top:1px solid var(--line);padding:4px 4px 6px}
+#symbar.hide{display:none}
+.srow{display:flex;gap:4px;overflow-x:auto;padding:2px 0;-webkit-overflow-scrolling:touch}
+.srow::-webkit-scrollbar{height:0}
+.srow button{flex:0 0 auto;min-width:34px;padding:7px 8px;font-family:var(--mono);font-size:14px;border-radius:4px;
+  background:#FFFFFF;border-color:var(--violet);color:var(--fg)}
+.srow button:active{background:var(--violet);border-color:var(--violet);color:#FFFFFF}
+/* ---------- 输出面板（可拖动调高） ---------- */
+#panel{flex:none;display:flex;flex-direction:column;height:32vh;max-height:50vh;min-height:40px;
+  background:var(--outbg);border-top:1px solid var(--line)}
+#panel.collapsed{height:auto;min-height:0}
+#panel.dragging{transition:none;user-select:none}
+#phandle{flex:none;height:15px;display:flex;align-items:center;justify-content:center;cursor:ns-resize;
+  touch-action:none;background:var(--bg2);border-bottom:1px solid var(--line)}
+#phandle::before{content:"";width:46px;height:4px;border-radius:2px;background:var(--aux-p)}
+#phandle:active::before{background:var(--violet)}
+#phead{flex:none;display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--bg2);border-bottom:1px solid var(--line)}
+#ptitle{flex:1;font-size:12.5px;color:var(--dim)}
+#phead button{padding:4px 8px;font-size:12px}
+#pstop{background:#FFFFFF;border-color:var(--err);color:var(--err);font-size:12px;padding:4px 9px}
+#pstop:active{background:var(--err);border-color:var(--err);color:#FFFFFF}
+#out{flex:1;margin:0;padding:8px 10px;overflow:auto;font-family:var(--mono);font-size:13px;line-height:1.5;
+  white-space:pre-wrap;word-break:break-word;color:#333333;-webkit-overflow-scrolling:touch}
+#panel.collapsed #out{display:none}
+#out .err{color:var(--err)}
+#out .ok{color:#059669}
+#out .cn{color:var(--teal-d)}
+#out .sys{color:#7C3AED}
+#out .warn{color:#92400E;background:var(--aux-y)}
+#out .inp{color:#0D9488}   /* 修改 1：用户输入回显（淡青） */
+/* ---------- 弹层 ---------- */
+.overlay{position:fixed;inset:0;background:rgba(51,51,51,.35);display:flex;align-items:flex-end;justify-content:center;z-index:50}
+.modal{width:100%;max-width:520px;background:#FFFFFF;border:1px solid var(--violet);border-radius:10px 10px 0 0;
+  padding:14px;max-height:86vh;overflow:auto}
+.modal h3{margin:0 0 8px;font-size:16px;font-weight:600;color:var(--fg)}
+.modal p.hint{margin:0 0 10px;font-size:12.5px;color:var(--dim);line-height:1.6}
+.modal textarea{width:100%;background:#FFFFFF;color:var(--fg);border:1px solid var(--line);border-radius:4px;
+  padding:8px;font-family:var(--mono);font-size:14px;line-height:1.5;resize:vertical}
+.mact{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.menu{display:flex;flex-direction:column;gap:6px}
+.menu button{text-align:left;padding:11px 12px;font-size:14px;display:flex;justify-content:space-between;gap:10px;
+  background:#FFFFFF;border-color:var(--line);color:var(--fg)}
+.menu button:active{background:var(--bg3);border-color:var(--teal);color:var(--teal-d)}
+.menu button span.k{color:var(--dim);font-size:11.5px}
+.help{font-size:13px;line-height:1.75;color:var(--fg)}
+.help b{color:var(--teal-d)}
+.help code{background:var(--bg3);padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:12.5px;color:#7C3AED}
+.help ul{padding-left:18px;margin:6px 0}
+/* ---------- 文档视图（只读） ---------- */
+#vdoc{display:none;flex:1;min-height:0;overflow:hidden;background:#FFFFFF}
+#vdoc.show{display:flex;flex-direction:column}
+#vdoc #vtitle{flex:none;padding:5px 10px;font-size:12.5px;color:var(--dim);background:var(--bg2);
+  border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#vdoc #vbody{flex:1;margin:0;padding:8px 10px 40px;overflow:auto;font-family:var(--mono);font-size:var(--fs);
+  line-height:var(--lh);white-space:pre-wrap;word-break:break-word;color:var(--fg);-webkit-overflow-scrolling:touch}
+#app.docmode #editwrap{display:none}
+#app.docmode #symbar{display:none}
+/* 安装 / 导出弹窗里的表单件 */
+.modal select{width:100%;background:#FFFFFF;color:var(--fg);border:1px solid var(--line);border-radius:4px;
+  padding:9px 8px;font:inherit;font-size:14px}
+.modal input[type=text]{width:100%;background:#FFFFFF;color:var(--fg);border:1px solid var(--line);border-radius:4px;
+  padding:9px 8px;font-family:var(--mono);font-size:14px}
+.modal input[type=text]:focus,.modal select:focus{outline:0;border-color:var(--teal)}
+#mCustom{margin-top:8px;display:none}
+#mCustom.show{display:block}
+.filelist{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:6px;background:var(--bg2);padding:4px}
+.filelist label{display:flex;align-items:center;gap:8px;padding:9px 8px;border-radius:4px;font-size:13.5px;color:var(--fg)}
+.filelist label:active{background:var(--bg3)}
+.filelist input[type=checkbox]{flex:none;width:17px;height:17px;accent-color:var(--teal)}
+.filelist .fmeta{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono)}
+.filelist .fsize{flex:none;color:var(--dim);font-size:11.5px}
+.filelist .empty{padding:12px 8px;color:var(--dim);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button id="btnMenu" title="菜单">☰</button>
+    <div id="fname">未命名.py</div>
+    <button id="btnSym" title="显示/隐藏符号栏">⌨</button>
+    <button id="btnDoc" title="文档：只读查看虚拟盘里的文档">📄</button>
+    <button id="btnImport" title="导入文档到虚拟盘（txt/csv/json/md/xlsx/xls）">📥</button>
+    <button id="btnRun" class="primary">▶ 运行</button>
+    <button id="btnRunSave" class="save">💾 保存并运行</button>
+  </header>
+  <div id="statusbar">就绪</div>
+
+  <div id="editwrap">
+    <div id="gutter"><div id="ginner">1</div></div>
+    <div id="edbox">
+      <div id="hlbox"><pre id="hl"></pre></div>
+      <textarea id="ed" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+    </div>
+  </div>
+
+  <!-- 新增 3：只读文档视图（与编辑器互斥显示） -->
+  <div id="vdoc">
+    <div id="vtitle">文档</div>
+    <pre id="vbody"></pre>
+  </div>
+
+  <div id="errbar"></div>
+  <div id="candbar"></div>
+
+  <div id="symbar">
+    <div class="srow" id="sym1"></div>
+    <div class="srow" id="sym2"></div>
+  </div>
+
+  <section id="panel" class="collapsed">
+    <div id="phandle" title="上下拖动调整高度"></div>
+    <div id="phead">
+      <span id="ptitle">输出</span>
+      <button id="pcopy">复制</button>
+      <button id="pclear">清空</button>
+      <button id="ptoggle">展开</button>
+      <button id="pstop" class="stop" title="强制停止运行">🛑 停止</button>
+    </div>
+    <pre id="out"></pre>
+  </section>
+</div>
+<input type="file" id="fileInput" accept=".py,.txt,text/plain,text/x-python" style="display:none">
+<!-- 新增 4：文档导入（含 Excel） -->
+<input type="file" id="docInput" accept=".txt,.csv,.json,.md,.xlsx,.xls" style="display:none">
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var ed = $('ed'), hl = $('hl'), ginner = $('ginner'), gutter = $('gutter');
+  var out = $('out'), panel = $('panel'), errbar = $('errbar'), candbar = $('candbar');
+  var statusbar = $('statusbar'), fnameEl = $('fname'), symbar = $('symbar');
+  var app = $('app'), vdoc = $('vdoc'), vtitle = $('vtitle'), vbody = $('vbody');
+  var docFileList = null, importBusy = false, docViewActive = false, docPickSeq = 0;
+  var FILTER_BASE = null;   /* 新增 2/3：记录“程序自己生成”的文件，排除 Python 自带模块 */
+  var PY_URL = 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/';
+  var LS_NAME = 'pyed.name', LS_CODE = 'pyed.code', LS_FS = 'pyed.fs', LS_SYM = 'pyed.sym';
+  var DEFAULT_NAME = '未命名.py';
+
+  /* 修改 6 / 8：当前文件名，记住并在刷新后恢复 */
+  var currentFileName = localStorage.getItem(LS_NAME) || DEFAULT_NAME;
+  var fontSize = parseInt(localStorage.getItem(LS_FS), 10) || 15;
+  var busy = 0, lastLines = 0, running = false, pyodide = null, loading = null;
+  var candState = null, checkTimer = null, saveTimer = null, candTimer = null;
+  var stopRequested = false, guardTimer = null;
+  var panelHeight = Math.round((window.innerHeight || 640) * 0.32);
+
+  /* ==================== 语法着色 ==================== */
+  var KW1 = ['def','class','import','from','as','return','yield','lambda','global','nonlocal','async','await','del'];
+  var KW2 = ['if','elif','else','for','while','try','except','finally','with','break','continue','pass','raise',
+             'assert','in','is','and','or','not','match','case'];
+  var KW3 = ['True','False','None'];      /* 修改 2：特殊常量 → 橙色 */
+  var KW4 = ['self','cls'];               /* 上下文名 → 青色 */
+  var BUILTINS = ['print','input','len','range','int','str','float','bool','list','dict','set','tuple','type','sum','min','max',
+    'abs','round','sorted','reversed','enumerate','zip','map','filter','open','isinstance','issubclass','super','repr','id','hash',
+    'ord','chr','hex','bin','oct','divmod','pow','any','all','iter','next','format','getattr','setattr','hasattr','dir','vars',
+    'globals','locals','callable','eval','exec','compile','exit','quit','help','object','bytes','bytearray','frozenset','complex','slice'];
+  var S_KW1 = {}, S_KW2 = {}, S_KW3 = {}, S_KW4 = {}, S_BI = {};
+  KW1.forEach(function (w) { S_KW1[w] = 1; });
+  KW2.forEach(function (w) { S_KW2[w] = 1; });
+  KW3.forEach(function (w) { S_KW3[w] = 1; });
+  KW4.forEach(function (w) { S_KW4[w] = 1; });
+  BUILTINS.forEach(function (w) { S_BI[w] = 1; });
+  var OPS = '+-*/%=<>!&|^~@';
+
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function span(cls, s) { return '<span class="' + cls + '">' + esc(s) + '</span>'; }
+
+  /* 修改 1：统一的字符串扫描
+     - 三引号（''' / """）：遇到换行继续扫描，直到配对的三个引号才结束
+     - 单引号（' / "）：遇到换行立即中断（未闭合）
+     返回 {end, closed, nl, tri}，nl 为字符串内部包含的换行数 */
+  function scanString(src, i) {
+    var c = src[i], n = src.length;
+    var tri = (src.substr(i, 3) === c + c + c);
+    var q = tri ? c + c + c : c;
+    var j = i + q.length, closed = false, nl = 0, ch;
+    while (j < n) {
+      ch = src[j];
+      if (ch === '\\') { j += 2; continue; }
+      if (tri) {
+        if (src.substr(j, 3) === q) { j += 3; closed = true; break; }
+        if (ch === '\n') { nl++; }
+        j++;
+      } else {
+        if (ch === c) { j++; closed = true; break; }
+        if (ch === '\n') { break; }   /* 单引号遇换行即中断 */
+        j++;
+      }
+    }
+    return { end: j, closed: closed, nl: nl, tri: tri };
+  }
+
+  function highlight(src) {
+    var outHtml = '', i = 0, n = src.length, c, j, w, m, cls, s;
+    var isIdChar = function (ch) { return /[A-Za-z0-9_\u4e00-\u9fff]/.test(ch); };
+    /* 收集自定义函数名：本文件里 def 出来的都算 */
+    var customFuncs = new Set();
+    var defRe = /\bdef\s+([A-Za-z_][A-Za-z0-9_]*)/g, defM;
+    while ((defM = defRe.exec(src)) !== null) { customFuncs.add(defM[1]); }
+    while (i < n) {
+      c = src[i];
+      if (c === '#') {
+        j = src.indexOf('\n', i); if (j < 0) { j = n; }
+        outHtml += span('cm', src.slice(i, j)); i = j; continue;
+      }
+      if (c === '"' || c === "'") {
+        s = scanString(src, i);
+        outHtml += span('st', src.slice(i, s.end)); i = s.end; continue;
+      }
+      if (/[A-Za-z_\u4e00-\u9fff]/.test(c)) {
+        j = i;
+        while (j < n && isIdChar(src[j])) { j++; }
+        w = src.slice(i, j);
+        cls = null;
+        if (S_KW1[w]) { cls = 'k1'; }
+        else if (S_KW2[w]) { cls = 'k2'; }
+        else if (S_KW3[w]) { cls = 'kbool'; }
+        else if (S_KW4[w]) { cls = 'kc'; }
+        else if (S_BI[w]) { cls = 'bi'; }
+        else if (src[j] === '(') {
+          /* 有括号才细分：内置 / 自定义 / 类名 / 普通变量 */
+          if (S_BI[w]) {
+            cls = 'bi';                     /* 内置函数，保持原有颜色 */
+          } else if (customFuncs.has(w)) {
+            cls = 'fn-user';                /* 自定义函数 */
+          } else if (w[0] === w[0].toUpperCase() && w[0] !== w[0].toLowerCase()) {
+            cls = 'fn';                     /* 首字母大写的类名 */
+          }
+          /* 普通变量如 a()，不给 cls，保持正文色 */
+        }
+        outHtml += cls ? span(cls, w) : esc(w);
+        i = j; continue;
+      }
+      if (c >= '0' && c <= '9') {
+        m = /^(0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|\d[\d_]*(\.\d[\d_]*)?([eE][+-]?\d+)?|\.\d+)/.exec(src.slice(i));
+        w = m ? m[0] : c;
+        outHtml += span('nu', w); i += w.length; continue;
+      }
+      if (OPS.indexOf(c) >= 0) { outHtml += span('op', c); i++; continue; }
+      outHtml += esc(c); i++;
+    }
+    return outHtml;
+  }
+
+  /* 把字符串与注释替换成空格，保留长度与换行（用于静态扫描） */
+  function stripNonCode(src) {
+    var a = src.split(''), i = 0, n = src.length, c, s, k;
+    while (i < n) {
+      c = src[i];
+      if (c === '#') {
+        while (i < n && src[i] !== '\n') { a[i] = ' '; i++; }
+        continue;
+      }
+      if (c === '"' || c === "'") {
+        s = scanString(src, i);
+        for (k = i; k < s.end && k < n; k++) { if (src[k] !== '\n') { a[k] = ' '; } }
+        i = s.end; continue;
+      }
+      i++;
+    }
+    return a.join('');
+  }
+
+  /* ==================== 渲染与滚动同步 ==================== */
+  function update() {
+    var v = ed.value;
+    hl.innerHTML = highlight(v) + '\n';
+    var lines = v.split('\n').length;
+    if (lines !== lastLines) {
+      var s = '';
+      for (var i = 1; i <= lines; i++) { s += i + '\n'; }
+      ginner.textContent = s;
+      gutter.style.width = (String(lines).length + 1.6) + 'ch';
+      lastLines = lines;
+    }
+    syncScroll();
+    scheduleCheck();
+    scheduleSave();
+  }
+
+  function syncScroll() {
+    var x = ed.scrollLeft, y = ed.scrollTop;
+    hl.style.transform = 'translate(' + (-x) + 'px,' + (-y) + 'px)';
+    ginner.style.transform = 'translateY(' + (-y) + 'px)';
+  }
+  ed.addEventListener('scroll', syncScroll, { passive: true });
+  window.addEventListener('resize', syncScroll);
+
+  /* ==================== 文本插入（保留浏览器撤销栈） ==================== */
+  function replaceRange(start, end, text, selStart, selEnd) {
+    var prev = busy;
+    busy = 1;
+    var ok = false;
+    try {
+      ed.focus();
+      ed.setSelectionRange(start, end);
+      try {
+        if (text === '') { ok = document.execCommand('delete'); }
+        else { ok = document.execCommand('insertText', false, text); }
+      } catch (e) { ok = false; }
+      if (!ok) {
+        var v = ed.value;
+        ed.value = v.slice(0, start) + text + v.slice(end);
+      }
+    } finally { busy = prev; }
+    var s = (selStart === undefined || selStart === null) ? start + text.length : selStart;
+    var e2 = (selEnd === undefined || selEnd === null) ? s : selEnd;
+    try { ed.setSelectionRange(s, e2); } catch (e3) { }
+  }
+
+  /* ==================== 自动配对 ==================== */
+  var PAIR = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
+  var CLOSERS = { ')': 1, ']': 1, '}': 1, '"': 1, "'": 1 };
+  var QUOTES = { '"': 1, "'": 1 };
+
+  ed.addEventListener('input', function (e) {
+    if (busy) { return; }
+    if (e.isComposing) { update(); return; }
+    if (e.data && e.data.length === 1) {
+      var prev = busy; busy = 1;
+      var handled = false;
+      try {
+        var pos = ed.selectionStart, v = ed.value, d = e.data;
+        var after = v[pos] || '';
+        if (QUOTES[d]) {
+          /* 修改 1（真正原因）：数一数光标前连续的同种引号 */
+          var run = 0, k = pos - 1;
+          while (k >= 0 && v[k] === d) { run++; k--; }
+          if (run >= 3 && run % 3 === 0 && after !== d) {
+            /* 刚敲出第三个（或第六个）引号 → 补上成对的结束三引号，光标停在中间 */
+            replaceRange(pos, pos, d + d + d, pos, pos);
+            handled = true;
+          } else if (after === d && v[pos - 2] !== '\\') {
+            /* 再输入右半边时直接跳过 */
+            replaceRange(pos, pos + 1, '', pos, pos);
+            handled = true;
+          }
+        } else if (PAIR[d]) {
+          if (after !== d && !/[A-Za-z0-9_]/.test(after)) {
+            replaceRange(pos, pos, PAIR[d], pos, pos);
+            handled = true;
+          }
+        } else if (CLOSERS[d] && after === d && v[pos - 2] !== '\\') {
+          replaceRange(pos, pos + 1, '', pos, pos);
+          handled = true;
+        }
+      } finally { busy = prev; }
+      if (handled) { update(); hideCands(); return; }
+    }
+    update();
+  });
+
+  /* ==================== Enter 自动缩进 / Tab / 退格删对 ==================== */
+  ed.addEventListener('keydown', function (e) {
+    if (e.isComposing || e.keyCode === 229) { return; }
+    var v = ed.value, pos = ed.selectionStart, end = ed.selectionEnd;
+
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      if (pos !== end) { return; }
+      e.preventDefault();
+      var ls = v.lastIndexOf('\n', pos - 1) + 1;
+      var line = v.slice(ls, pos);
+      var m = /^[ \t]*/.exec(line);
+      var indent = m ? m[0] : '';
+      var trimmed = line.replace(/\s+$/, '');
+      if (trimmed === '') {
+        indent = indent.slice(0, Math.max(0, indent.length - 4));
+      } else if (/:\s*(#.*)?$/.test(trimmed)) {
+        indent += '    ';
+      } else if (/[\(\[\{]\s*$/.test(trimmed) && !/[\)\]\}]\s*$/.test(trimmed)) {
+        indent += '    ';
+      }
+      replaceRange(pos, end, '\n' + indent);
+      update(); hideCands();
+      return;
+    }
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      replaceRange(pos, end, '    ');
+      update();
+      return;
+    }
+
+    if (e.key === 'Backspace' && pos === end && pos > 0) {
+      var a = v[pos - 1], b = v[pos] || '';
+      /* 成对符号：一次删掉左右两边 */
+      if ((a === '(' && b === ')') || (a === '[' && b === ']') || (a === '{' && b === '}') ||
+          ((a === '"' || a === "'") && a === b)) {
+        e.preventDefault();
+        replaceRange(pos - 1, pos + 1, '', pos - 1, pos - 1);
+        update();
+        return;
+      }
+      /* 修改 3：光标位于行首缩进区（从行首到光标全是空格）且不少于 4 个空格 → 一次删 4 个 */
+      var lineStart2 = v.lastIndexOf('\n', pos - 1) + 1;
+      var indentPrefix = v.slice(lineStart2, pos);
+      if (a === ' ' && indentPrefix.length >= 4 && /^[ ]*$/.test(indentPrefix)) {
+        e.preventDefault();
+        replaceRange(pos - 4, pos, '', pos - 4, pos - 4);
+        update();
+        return;
+      }
+      /* 修改 3：光标前是 \t 制表符 → 一次删掉 1 个 \t（即默认行为，一次一个） */
+      if (a === '\t') { return; }
+      /* 其他位置（代码中间、字符串内、行尾等）→ 走默认，只删 1 个字符 */
+    }
+
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault(); run();
+    }
+  });
+
+  /* ==================== 符号快捷栏 ==================== */
+  var ROW1 = [['Tab', '    '], ['(', '()', 1], [')', ')'], ['[', '[]', 1], [']', ']'], ['{', '{}', 1], ['}', '}'],
+    [':', ':'], [',', ','], ['.', '.'], ['=', '='], ['+', '+'], ['-', '-'], ['*', '*'], ['/', '/'], ['%', '%']];
+  var ROW2 = [["'", "''", 1], ['"', '""', 1], ['_', '_'], ['#', '#'], ['\\', '\\'], ['<', '<'], ['>', '>'],
+    ['!', '!'], ['&', '&'], ['|', '|'], ['~', '~'], ['@', '@'], ['^', '^'], ['?', '?'], [';', ';'], ['$', '$'], ['␣', ' ']];
+
+  function buildSymRow(el, list) {
+    list.forEach(function (it) {
+      var b = document.createElement('button');
+      b.textContent = it[0];
+      b.type = 'button';
+      b.addEventListener('pointerdown', function (ev) { ev.preventDefault(); });
+      b.addEventListener('click', function () {
+        var s = ed.selectionStart, e = ed.selectionEnd;
+        if (it[2]) { replaceRange(s, e, it[1], s + 1, s + 1); }
+        else { replaceRange(s, e, it[1]); }
+        update(); hideCands();
+      });
+      el.appendChild(b);
+    });
+  }
+  buildSymRow($('sym1'), ROW1);
+  buildSymRow($('sym2'), ROW2);
+
+  function applySymVisible() {
+    var on = localStorage.getItem(LS_SYM) !== '0';
+    symbar.classList.toggle('hide', !on);
+    $('btnSym').style.opacity = on ? '1' : '.5';
+    setTimeout(syncScroll, 0);
+  }
+  $('btnSym').addEventListener('click', function () {
+    localStorage.setItem(LS_SYM, localStorage.getItem(LS_SYM) === '0' ? '1' : '0');
+    applySymVisible();
+  });
+
+  /* ==================== 实时语法检查 ==================== */
+  var CJK = /[\u3000-\u303f\uff01-\uff5e\u2018\u2019\u201c\u201d\u2014\u2026]/;
+
+  function checkSyntax(src) {
+    var errs = [], stack = [], i = 0, n = src.length, line = 1;
+    var OP = '([{', CL = ')]}', MATCH = { ')': '(', ']': '[', '}': '{' };
+    while (i < n) {
+      var c = src[i];
+      if (c === '\n') { line++; i++; continue; }
+      if (c === '#') { var k = src.indexOf('\n', i); i = (k < 0 ? n : k); continue; }
+      if (c === '"' || c === "'") {
+        var s = scanString(src, i);           /* 三引号跨行继续，单引号遇换行中断 */
+        if (!s.closed) {
+          errs.push('第 ' + line + ' 行：引号没有闭合（' + (s.tri ? '三引号' : (c === '"' ? '双引号' : '单引号')) + '）');
+        } else { line += s.nl; }
+        i = s.end; continue;
+      }
+      if (OP.indexOf(c) >= 0) { stack.push({ c: c, line: line }); i++; continue; }
+      if (CL.indexOf(c) >= 0) {
+        var t = stack.pop();
+        if (!t || t.c !== MATCH[c]) { errs.push('第 ' + line + ' 行：多余的或类型不匹配的右括号「' + c + '」'); }
+        i++; continue;
+      }
+      if (CJK.test(c)) { errs.push('第 ' + line + ' 行：出现中文/全角标点「' + c + '」，Python 里必须用英文半角符号'); i++; continue; }
+      i++;
+    }
+    for (var q = 0; q < stack.length; q++) {
+      errs.push('第 ' + stack[q].line + ' 行：左括号「' + stack[q].c + '」没有对应的右括号');
+    }
+    return errs;
+  }
+
+  function scheduleCheck() {
+    clearTimeout(checkTimer);
+    checkTimer = setTimeout(function () {
+      var errs = checkSyntax(ed.value);
+      if (errs.length) {
+        errbar.textContent = '⚠ ' + errs.slice(0, 3).join('\n⚠ ') + (errs.length > 3 ? '\n…… 共 ' + errs.length + ' 处' : '');
+        errbar.classList.add('show');
+      } else {
+        errbar.classList.remove('show');
+        errbar.textContent = '';
+      }
+    }, 350);
+  }
+
+  /* ==================== 修改 2：改写 time.sleep() ==================== */
+  /* 只在“真代码”位置替换，字符串/注释里的 time.sleep 不受影响 */
+  function maskReplace(code, re, repl) {
+    var masked = stripNonCode(code);
+    var res = '', last = 0, m, count = 0;
+    re.lastIndex = 0;
+    while ((m = re.exec(masked)) !== null) {
+      if (m[0].length === 0) { re.lastIndex++; continue; }
+      res += code.slice(last, m.index) + repl;
+      last = m.index + m[0].length;
+      count++;
+    }
+    res += code.slice(last);
+    return { code: res, count: count };
+  }
+
+  function prepareCode(code) {
+    var r = maskReplace(code, /time[ \t]*\.[ \t]*sleep[ \t]*\(/g, 'await asyncio.sleep(');
+    if (!r.count) { return { code: code, replaced: false, count: 0, lineOffset: 0 }; }
+    return { code: 'import asyncio\n' + r.code, replaced: true, count: r.count, lineOffset: 1 };
+  }
+
+  /* ==================== 修改 7：疑似死循环检测 ==================== */
+  function findRiskyLoops(src) {
+    var masked = stripNonCode(src);
+    var lines = masked.split('\n');
+    var risky = [], i, j, L, m, base, body, ind;
+    for (i = 0; i < lines.length; i++) {
+      m = /^([ \t]*)while[ \t]+(True|1)[ \t]*:/.exec(lines[i]);
+      if (!m) { continue; }
+      base = m[1].length;
+      body = lines[i].slice(m[0].length) + '\n';   /* 同行写在冒号后面的内容 */
+      for (j = i + 1; j < lines.length; j++) {
+        L = lines[j];
+        if (L.replace(/\s/g, '') === '') { body += '\n'; continue; }
+        ind = /^[ \t]*/.exec(L)[0].length;
+        if (ind <= base) { break; }
+        body += L + '\n';
+      }
+      if (!/\b(break|return|raise)\b|\bsys[ \t]*\.[ \t]*exit|\bexit[ \t]*\(|\bquit[ \t]*\(/.test(body)) {
+        risky.push({ line: i + 1, stop: j });
+      }
+    }
+    return risky;
+  }
+
+  /* ==================== 自动补全 ==================== */
+  var KEYWORD_LIST = ['and','as','assert','async','await','break','class','continue','def','del','elif','else','except',
+    'finally','for','from','global','if','import','in','is','lambda','match','case','nonlocal','not','or','pass','raise',
+    'return','try','while','with','yield','True','False','None'];
+  var EXC_LIST = ['Exception','ValueError','TypeError','NameError','IndexError','KeyError','AttributeError','ZeroDivisionError',
+    'FileNotFoundError','ImportError','ModuleNotFoundError','OSError','RuntimeError','StopIteration','KeyboardInterrupt',
+    'ArithmeticError','LookupError','UnicodeDecodeError','PermissionError','RecursionError','AssertionError','OverflowError',
+    'MemoryError','NotImplementedError','EOFError','BaseException'];
+
+  var SNIPPETS = {
+    try: "try:\n    |\nexcept Exception as e:\n    print('出错：', e)",
+    for: "for i in range(10):\n    |",
+    def: "def my_func(arg):\n    |",
+    if: "if True:\n    |",
+    while: "while True:\n    |",
+    with: "with open('data.txt', 'r', encoding='utf-8') as f:\n    |",
+    class: "class MyClass:\n    def __init__(self):\n        |",
+    ifmain: "if __name__ == '__main__':\n    |",
+    lambda: "lambda x: |"
+  };
+
+  function renderCands(state) {
+    candState = state;
+    if (!state || !state.items.length) { hideCands(); return; }
+    candbar.innerHTML = '';
+    state.items.slice(0, 14).forEach(function (it) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = it.label;
+      if (it.snip) { b.className = 'snip'; }
+      b.addEventListener('pointerdown', function (ev) { ev.preventDefault(); });
+      b.addEventListener('click', function () { applyCand(it); });
+      candbar.appendChild(b);
+    });
+    candbar.classList.add('show');
+  }
+  function hideCands() { candbar.classList.remove('show'); candbar.innerHTML = ''; candState = null; }
+
+  function applyCand(item) {
+    if (!candState) { return; }
+    var start = candState.start, end = ed.selectionStart;
+    if (item.snip) {
+      var idx = item.ins.indexOf('|');
+      var text = item.ins.replace('|', '');
+      var caret = start + (idx < 0 ? text.length : idx);
+      replaceRange(start, end, text, caret, caret);
+    } else {
+      replaceRange(start, end, item.ins);
+    }
+    hideCands(); update(); ed.focus();
+  }
+
+  function refreshCands() {
+    var v = ed.value, pos = ed.selectionStart;
+    if (pos !== ed.selectionEnd) { hideCands(); return; }
+    var ls = v.lastIndexOf('\n', pos - 1) + 1;
+    var linePre = v.slice(ls, pos);
+
+    var em = /except[ \t]+([A-Za-z_]*)$/.exec(linePre);
+    if (em) {
+      var pre = em[1];
+      var items = EXC_LIST.filter(function (x) { return x.toLowerCase().indexOf(pre.toLowerCase()) === 0 && x !== pre; })
+        .map(function (x) { return { label: x, ins: x }; });
+      if (items.length) { renderCands({ items: items, start: pos - pre.length, plain: true }); return; }
+    }
+
+    var m = /([A-Za-z_][A-Za-z0-9_]*)$/.exec(v.slice(0, pos));
+    if (!m) { hideCands(); return; }
+    var w = m[1];
+    if (w.length < 2) { hideCands(); return; }
+    var list = [], seen = {};
+    var push = function (label, ins, snip) {
+      if (seen[label]) { return; }
+      seen[label] = 1;
+      list.push({ label: label, ins: ins, snip: !!snip });
+    };
+    if (SNIPPETS[w]) { push(w + ' ⇥ 完整结构', SNIPPETS[w], true); }
+    seen[w] = 1;
+    KEYWORD_LIST.forEach(function (k) { if (k.indexOf(w) === 0) { push(k, k); } });
+    BUILTINS.forEach(function (k) { if (k.indexOf(w) === 0) { push(k, k); } });
+    Object.keys(SNIPPETS).forEach(function (k) { if (k.indexOf(w) === 0) { push(k + ' ⇥ 完整结构', SNIPPETS[k], true); } });
+    if (!list.length) { hideCands(); return; }
+    renderCands({ items: list, start: pos - w.length, plain: true });
+  }
+
+  ed.addEventListener('input', function () {
+    if (busy) { return; }
+    clearTimeout(candTimer);
+    candTimer = setTimeout(refreshCands, 120);
+  });
+  ed.addEventListener('click', function () { clearTimeout(candTimer); candTimer = setTimeout(refreshCands, 120); });
+  ed.addEventListener('blur', function () { setTimeout(hideCands, 150); });
+
+  /* ==================== 输出面板 ==================== */
+  /* 修改 1：把 \n 明确渲染成 <br>，不依赖 white-space 的换行表现。
+     配合 Python 侧的中转（sys.stdout 包装 → dshWrite），
+     print 的每个换行都能原样到达并显示为真实换行。 */
+  function writeOut(text, cls) {
+    var str = (text === null || text === undefined) ? '' : String(text);
+    str = str.replace(/\r\n?/g, '\n');
+    var s = document.createElement('span');
+    if (cls) { s.className = cls; }
+    var parts = str.split('\n');
+    for (var i = 0; i < parts.length; i++) {
+      if (i > 0) { s.appendChild(document.createElement('br')); }
+      if (parts[i] !== '') { s.appendChild(document.createTextNode(parts[i])); }
+    }
+    out.appendChild(s);
+    out.scrollTop = out.scrollHeight;
+  }
+  function clearOut() { out.textContent = ''; }
+  function setPanel(open) {
+    panel.classList.toggle('collapsed', !open);
+    if (open) {
+      panel.style.height = Math.max(40, Math.min(maxPanelHeight(), panelHeight)) + 'px';
+    } else {
+      panel.style.height = '';
+    }
+    $('ptoggle').textContent = open ? '收起' : '展开';
+    setTimeout(syncScroll, 0);
+  }
+  $('ptoggle').addEventListener('click', function () { setPanel(panel.classList.contains('collapsed')); });
+  $('pclear').addEventListener('click', clearOut);
+  $('pcopy').addEventListener('click', function () {
+    var t = out.innerText;
+    if (!t) { return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () { setStatus('输出已复制到剪贴板', 'ok'); },
+        function () { setStatus('复制失败，请手动选择文本', 'err'); });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = t; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); setStatus('输出已复制', 'ok'); } catch (e) { setStatus('复制失败', 'err'); }
+      ta.remove();
+    }
+  });
+
+  function setStatus(text, cls) {
+    statusbar.textContent = text;
+    statusbar.className = cls || '';
+  }
+
+  /* ==================== 修改 3：输出面板上下拖动调高 ==================== */
+  var handle = $('phandle'), dragState = null;
+  function maxPanelHeight() { return Math.max(40, Math.round((window.innerHeight || 640) * 0.5)); }
+
+  function endDrag() {
+    if (!dragState) { return; }
+    dragState = null;
+    panel.classList.remove('dragging');
+    panel.style.height = Math.max(40, Math.min(maxPanelHeight(), panelHeight)) + 'px';
+  }
+  handle.addEventListener('pointerdown', function (e) {
+    panel.classList.remove('collapsed');
+    $('ptoggle').textContent = '收起';
+    var h = panel.getBoundingClientRect ? panel.getBoundingClientRect().height : panelHeight;
+    dragState = { y: e.clientY, h: h || panelHeight };
+    panel.classList.add('dragging');
+    panel.style.height = dragState.h + 'px';
+    try { handle.setPointerCapture(e.pointerId); } catch (err) { }
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', function (e) {
+    if (!dragState) { return; }
+    var h = dragState.h + (dragState.y - e.clientY);   /* 向上拖 → 变高 */
+    h = Math.max(40, Math.min(maxPanelHeight(), h));
+    panelHeight = h;
+    panel.style.height = h + 'px';
+    e.preventDefault();
+  });
+  handle.addEventListener('pointerup', endDrag);
+  handle.addEventListener('pointercancel', endDrag);
+  handle.addEventListener('lostpointercapture', endDrag);
+  /* 触屏兜底（不支持 Pointer Events 的老浏览器） */
+  if (!window.PointerEvent) {
+    handle.addEventListener('touchstart', function (e) {
+      var t = e.touches[0];
+      panel.classList.remove('collapsed');
+      dragState = { y: t.clientY, h: panel.getBoundingClientRect().height };
+      e.preventDefault();
+    }, { passive: false });
+    handle.addEventListener('touchmove', function (e) {
+      if (!dragState) { return; }
+      var t = e.touches[0];
+      var h = Math.max(40, Math.min(maxPanelHeight(), dragState.h + (dragState.y - t.clientY)));
+      panelHeight = h; panel.style.height = h + 'px';
+      e.preventDefault();
+    }, { passive: false });
+    handle.addEventListener('touchend', endDrag);
+  }
+
+  /* ==================== 修改 6 / 8：文件保存与文件名记忆 ==================== */
+  function setFname() {
+    fnameEl.textContent = currentFileName;
+    document.title = currentFileName + ' - 手机 Python 程序';
+  }
+  fnameEl.addEventListener('click', function () {
+    var n = prompt('文件名：', currentFileName);
+    if (n && n.trim()) { currentFileName = n.trim(); setFname(); scheduleSave(); }
+  });
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      try {
+        localStorage.setItem(LS_CODE, ed.value);
+        localStorage.setItem(LS_NAME, currentFileName);
+      } catch (e) { }
+    }, 600);
+  }
+
+  function withPyExt(n) { return /\.(py|txt)$/i.test(n) ? n : n + '.py'; }
+
+  /* 返回 true 表示已写出文件 */
+  async function writeFile(forceAs) {
+    if (!forceAs && currentFileName === DEFAULT_NAME) {
+      var n0 = prompt('第一次保存，请给文件起个名字：', '我的程序.py');
+      if (!n0 || !n0.trim()) { setStatus('已取消保存'); return false; }
+      currentFileName = withPyExt(n0.trim());
+      setFname();
+    }
+    var blob = new Blob([ed.value], { type: 'text/plain;charset=utf-8' });
+    if (window.showSaveFilePicker) {
+      try {
+        var handle2 = await window.showSaveFilePicker({
+          suggestedName: currentFileName,
+          types: [{ description: 'Python / 文本文件', accept: { 'text/plain': ['.py', '.txt'] } }]
+        });
+        var w = await handle2.createWritable();
+        await w.write(blob); await w.close();
+        if (handle2.name) { currentFileName = handle2.name; setFname(); scheduleSave(); }
+        setStatus('已保存（覆盖同名文件）：' + currentFileName, 'ok');
+        writeOut('[已保存] ' + currentFileName + '\n', 'sys');
+        return true;
+      } catch (e) {
+        if (e && e.name === 'AbortError') { setStatus('已取消保存'); return false; }
+      }
+    }
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = currentFileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    scheduleSave();
+    setStatus('已保存：' + currentFileName, 'ok');
+    writeOut('[已保存] ' + currentFileName + '（下载目录）\n', 'sys');
+    writeOut('提示：已保存，若下载文件夹中存在同名文件，请手动替换旧的（手机浏览器可能把它存成 ' +
+      currentFileName.replace(/\.py$/i, '') + '(1).py）。\n', 'cn');
+    return true;
+  }
+
+  async function doSave() { await writeFile(false); }
+  async function doSaveAs() {
+    var n = prompt('另存为（文件名）：', currentFileName === DEFAULT_NAME ? '我的程序.py' : currentFileName);
+    if (!n || !n.trim()) { return false; }
+    currentFileName = withPyExt(n.trim());
+    setFname();
+    return await writeFile(true);
+  }
+  function doOpen() { $('fileInput').click(); }
+  $('fileInput').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) { return; }
+    var r = new FileReader();
+    r.onload = function () {
+      ed.value = String(r.result).replace(/\r\n/g, '\n');
+      currentFileName = f.name; setFname(); lastLines = 0;
+      update(); hideCands(); scheduleSave();
+      setStatus('已打开：' + f.name + '（' + ed.value.length + ' 字符）', 'ok');
+    };
+    r.onerror = function () { setStatus('文件读取失败', 'err'); };
+    r.readAsText(f, 'utf-8');
+    e.target.value = '';
+  });
+  function doNew() {
+    if (ed.value.trim() && !confirm('新建将清空当前代码（可先保存），确定吗？')) { return; }
+    ed.value = ''; currentFileName = DEFAULT_NAME; setFname(); lastLines = 0;
+    update(); clearOut(); hideCands(); scheduleSave();
+    setStatus('已新建文件', 'ok');
+  }
+
+  /* ==================== 字号 ==================== */
+  function applyFont() {
+    document.documentElement.style.setProperty('--fs', fontSize + 'px');
+    document.documentElement.style.setProperty('--lh', Math.round(fontSize * 1.45) + 'px');
+    localStorage.setItem(LS_FS, String(fontSize));
+    setTimeout(syncScroll, 0);
+  }
+  function changeFont(d) {
+    fontSize = Math.max(11, Math.min(26, fontSize + d));
+    applyFont();
+    setStatus('字号：' + fontSize + 'px', 'ok');
+  }
+
+  /* ==================== 弹层 ==================== */
+  function closeOverlay(ov) { ov.remove(); }
+
+  /* 修改 1：原来的“预填输入框”弹窗（askInputs）已移除，
+     input() 改为运行时逐个弹出 JS 原生 prompt */
+
+  /* 修改 7 的确认弹窗：继续运行 / 取消 */
+  function askRisky(lines) {
+    return new Promise(function (resolve) {
+      var ov = document.createElement('div');
+      ov.className = 'overlay';
+      ov.innerHTML = '<div class="modal">' +
+        '<h3>⚠ 检测到可能的无限循环</h3>' +
+        '<p class="hint">第 ' + lines.join('、') + ' 行的 <code>while True:</code> 循环里没有发现 break / return / sys.exit()。' +
+        '运行后代码可能一直不结束，导致页面卡死。</p>' +
+        '<p class="hint">选择“继续运行”后会自动开启保护：最多执行 15 秒即被强制中断（会让运行速度变慢一些）。</p>' +
+        '<div class="mact"><button id="rcancel">取消</button><button id="rok" class="primary">继续运行</button></div>' +
+        '</div>';
+      document.body.appendChild(ov);
+      ov.querySelector('#rcancel').addEventListener('click', function () { closeOverlay(ov); resolve(false); });
+      ov.querySelector('#rok').addEventListener('click', function () { closeOverlay(ov); resolve(true); });
+    });
+  }
+
+  function showMenu() {
+    var ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.innerHTML = '<div class="modal"><h3>菜单</h3><div class="menu">' +
+      '<button id="m1">新建文件<span class="k">Ctrl+N</span></button>' +
+      '<button id="m2">打开文件（.py / .txt）<span class="k">Ctrl+O</span></button>' +
+      '<button id="m3">保存<span class="k">Ctrl+S</span></button>' +
+      '<button id="m4">另存为…<span class="k">Ctrl+Shift+S</span></button>' +
+      '<button id="m11">保存并运行</button>' +
+      '<button id="m12">📦 安装第三方库</button>' +
+      '<button id="m13">📤 导出虚拟文件</button>' +
+      '<button id="m14">📄 文档（只读查看）</button>' +
+      '<button id="m15">📥 导入文档（含 Excel）</button>' +
+      '<button id="m5">字号 +</button>' +
+      '<button id="m6">字号 −</button>' +
+      '<button id="m7">显示 / 隐藏符号栏</button>' +
+      '<button id="m8">清空输出</button>' +
+      '<button id="m9">使用说明</button>' +
+      '<button id="m10">清空自动备份</button>' +
+      '<button id="m0">关闭</button>' +
+      '</div></div>';
+    document.body.appendChild(ov);
+    var close = function () { closeOverlay(ov); };
+    ov.querySelector('#m1').onclick = function () { close(); doNew(); };
+    ov.querySelector('#m2').onclick = function () { close(); doOpen(); };
+    ov.querySelector('#m3').onclick = function () { close(); doSave(); };
+    ov.querySelector('#m4').onclick = function () { close(); doSaveAs(); };
+    ov.querySelector('#m11').onclick = function () { close(); saveAndRun(); };
+    ov.querySelector('#m12').onclick = function () { close(); showInstall(); };
+    ov.querySelector('#m13').onclick = function () { close(); showExport(); };
+    ov.querySelector('#m14').onclick = function () { close(); showDocView(); };
+    ov.querySelector('#m15').onclick = function () { close(); $('docInput').click(); };
+    ov.querySelector('#m5').onclick = function () { changeFont(1); };
+    ov.querySelector('#m6').onclick = function () { changeFont(-1); };
+    ov.querySelector('#m7').onclick = function () { close(); $('btnSym').click(); };
+    ov.querySelector('#m8').onclick = function () { clearOut(); close(); };
+    ov.querySelector('#m9').onclick = function () { close(); showHelp(); };
+    ov.querySelector('#m10').onclick = function () {
+      if (confirm('清空浏览器里的自动备份？')) {
+        localStorage.removeItem(LS_CODE); localStorage.removeItem(LS_NAME);
+        currentFileName = DEFAULT_NAME; setFname();
+        setStatus('已清空自动备份', 'ok');
+      }
+      close();
+    };
+    ov.querySelector('#m0').onclick = close;
+    ov.addEventListener('click', function (e) { if (e.target === ov) { close(); } });
+  }
+
+  function showHelp() {
+    var ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.innerHTML = '<div class="modal"><h3>使用说明</h3><div class="help">' +
+      '<p><b>1. 运行代码</b><br>右上角「▶ 运行」只运行；「💾 保存并运行」先把代码存成 .py 文件再运行。' +
+      '首次需联网下载 Pyodide（约 10 MB），之后浏览器会缓存，可离线使用。</p>' +
+      '<p><b>2. 强制停止</b><br>输出面板右上角的 <code>🛑 停止</code> 可中断正在运行的代码。' +
+      '如果代码里有 <code>time.sleep()</code>（会被自动改写成可中断的 <code>await asyncio.sleep()</code>），停止按钮能立刻生效。' +
+      '但如果代码是没有任何等待的死循环（例如 <code>while True: pass</code>），浏览器主线程会被占满，' +
+      '此时任何按钮都点不动，只能关闭本页重新打开；程序里检测到这类循环时会提前提醒，并可开启 15 秒自动中断保护。</p>' +
+      '<p><b>3. input() 输入</b><br>执行到 <code>input()</code> 时会弹出系统输入框（一次输入一个值）；' +
+      '你输入的内容会以淡青色回显在输出面板里，形成终端效果。点「取消」会抛出 <code>EOFError</code> 并结束程序，不会卡在死循环里。</p>' +
+      '<p><b>4. 编辑技巧</b></p><ul>' +
+      '<li>输入 <code>(</code> <code>[</code> <code>{</code> <code>\'</code> <code>"</code> 会自动补全另一半，再打右半边会自动跳过。</li>' +
+      '<li>连续输入三个引号（<code>"""</code> 或 <code>\'\'\'</code>）会自动补出成对的三引号，回车不会误报“引号没有闭合”。</li>' +
+      '<li>行尾是 <code>:</code> 时回车自动缩进 4 格；在空行回车会减少一级缩进。</li>' +
+      '<li>输入 2 个以上字母会弹出候选条；输入 <code>except </code> 会列出常见异常类型。</li>' +
+      '<li>候选条里的「完整结构」可一键插入 try / for / def / if / while / with / class 模板。</li>' +
+      '<li>底部两行符号键可在不切换输入法的情况下输入常用符号，点 ⌨ 可隐藏。</li>' +
+      '</ul>' +
+      '<p><b>5. 报错</b><br>编辑时下方实时红字提示括号不匹配、引号未闭合、中文标点；运行出错会显示原始 traceback，' +
+      '并附中文异常名、原因解释与出错行号。</p>' +
+      '<p><b>6. 输出面板</b><br>按住面板顶部的横条上下拖动可以调整高度（最小 40px，最大半屏），点「收起 / 展开」也可折叠。</p>' +
+      '<p><b>7. 文件</b><br>第一次保存会让你起名字，之后点保存直接用这个名字（不再弹窗）；只有点「另存为」才重新输入名字。' +
+      '手机浏览器下载同名文件时可能存成 <code>xxx(1).py</code>，需要手动替换旧文件，页面会给出提示。' +
+      '当前文件名与代码都会自动备份到浏览器，刷新后自动恢复。</p>' +
+      '<p><b>8. 快捷键</b><br>Ctrl+N 新建、Ctrl+O 打开、Ctrl+S 保存、Ctrl+Shift+S 另存为、Ctrl+Enter 运行。</p>' +
+      '<p><b>9. 第三方库</b><br>菜单里的「📦 安装第三方库」可从 PyPI 装纯 Python 的库（预设 numpy / pandas / matplotlib / jieba / openpyxl，也可自定义库名）。' +
+      '装完缓存在虚拟盘里，可离线用。含 C 扩展、没有 WebAssembly 轮子的库（如 scipy、torch）装不上。</p>' +
+      '<p><b>10. 导入 / 导出文档</b><br>顶栏「📥」把手机的 txt / csv / json / md / xlsx / xls 放进虚拟盘 <code>/home/pyodide/</code>（单个文件上限 2MB；' +
+      '读 <code>.xlsx</code> 需要 pandas 或 openpyxl，会提示你安装）。菜单「📤 导出虚拟文件」把虚拟盘里<strong>你生成的文件</strong>下载回手机，' +
+      'Python 自带的标准库模块不会被列出来。</p>' +
+      '<p><b>11. 文档视图</b><br>顶栏「📄」进入只读文档视图，全屏查看虚拟盘里的文档，不会误改代码；' +
+      '多个文档会弹窗让你选。再点一次（此时按钮变成 ✖）返回代码编辑。</p>' +
+      '<div class="mact"><button id="hclose" class="primary">知道了</button></div>' +
+      '</div></div>';
+    document.body.appendChild(ov);
+    ov.querySelector('#hclose').onclick = function () { closeOverlay(ov); };
+    ov.addEventListener('click', function (e) { if (e.target === ov) { closeOverlay(ov); } });
+  }
+
+  /* ==================== 新增 1：第三方库（micropip）安装 ==================== */
+  var PKG_PRESETS = ['numpy', 'pandas', 'matplotlib', 'jieba', 'openpyxl'];
+
+  /* 依次尝试几种常见的包目录写法，判断某个库是否已经在虚拟盘里 */
+  function pkgPresent(py, name) {
+    var base = name.split('.')[0].replace(/-/g, '_');
+    var py_code = 'import os as _o\n' +
+      '_n = ' + JSON.stringify(base) + '\n' +
+      '_f = _o.path.join("/home/pyodide", _n)\n' +
+      '(_o.path.isfile(_f) and _f.endswith(".py")) or _o.path.isdir(_f) or ' +
+      '_o.path.isdir(_f + ".dist-info") or _o.path.isdir("/home/pyodide/" + _n + "-0.dist-info")';
+    try { return !!py.runPython(py_code); } catch (e) { return false; }
+  }
+
+  async function installPkg(name) {
+    var py = await ensurePyodide();
+    var log = function (t, c) { writeOut(t + '\n', c || 'sys'); };
+    try {
+      py.globals.set('_dsh_pkg', name);
+      log('[系统] 正在解析并安装 ' + name + ' …');
+      await withTimeout(
+        py.runPythonAsync('import micropip\nawait micropip.install(_dsh_pkg)'),
+        180000,
+        name
+      );
+      log('[系统] 已成功安装 ' + name + '，现在可以在代码里 import ' + name.split('.')[0].replace(/-/g, '_') + ' 了。', 'ok');
+      setStatus('已安装 ' + name, 'ok');
+      return true;
+    } catch (e) {
+      var m = (e && e.message) ? e.message : String(e);
+      if (pkgPresent(py, name)) {
+        log('[系统] ' + name + ' 之前在虚拟盘中已存在，本次无需重新下载。', 'ok');
+        setStatus(name + ' 已安装', 'ok');
+        return true;
+      }
+      if (/timeout|超时/i.test(m)) {
+        log('[系统] 安装 ' + name + ' 超时：网络太慢或该库太大。可稍后重试，或换个网络环境再装。', 'err');
+      } else {
+        log('[系统] 安装 ' + name + ' 失败：' + m.split('\n').slice(-3).join(' '), 'err');
+        log('提示：请确认网络可用；部分库没有纯 Python 版（WebAssembly 轮子），在浏览器里装不上（例如 scipy、torch）。', 'cn');
+      }
+      setStatus('安装失败：' + name, 'err');
+      return false;
+    } finally {
+      try { py.globals.delete('_dsh_pkg'); } catch (e2) { }
+    }
+  }
+
+  function withTimeout(promise, ms, label) {
+    return new Promise(function (resolve, reject) {
+      var done = false;
+      var t = setTimeout(function () {
+        if (done) { return; }
+        done = true;
+        reject(new Error('安装 ' + label + ' timeout 超时（' + Math.round(ms / 1000) + ' 秒）'));
+      }, ms);
+      Promise.resolve(promise).then(function (v) {
+        if (done) { return; }
+        done = true; clearTimeout(t); resolve(v);
+      }, function (e) {
+        if (done) { return; }
+        done = true; clearTimeout(t); reject(e);
+      });
+    });
+  }
+
+  function showInstall() {
+    var opts = PKG_PRESETS.map(function (p) { return '<option value="' + p + '">' + p + '</option>'; }).join('');
+    var ov = document.createElement('div');
+    ov.className = 'overlay';
+    ov.innerHTML = '<div class="modal"><h3>📦 安装第三方库</h3>' +
+      '<p class="hint">从 PyPI 下载并安装到虚拟盘（首次需要联网，装完缓存起来，之后可离线用）。' +
+      '不支持含 C 扩展、没有 WebAssembly 轮子的库。</p>' +
+      '<select id="mPkg">' + opts + '<option value="__c__">自定义输入…</option></select>' +
+      '<div id="mCustom"><input type="text" id="mPkgName" placeholder="库名，例如 requests 或 requests==2.31.0" autocapitalize="off" autocorrect="off" spellcheck="false"></div>' +
+      '<div class="mact"><button id="mCancel">取消</button><button id="mGo" class="primary">开始安装</button></div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    var sel = ov.querySelector('#mPkg'), cw = ov.querySelector('#mCustom'), inp = ov.querySelector('#mPkgName');
+    sel.addEventListener('change', function () {
+      var c = sel.value === '__c__';
+      cw.classList.toggle('show', c);
+      if (c) { try { inp.focus(); } catch (e) { } }
+    });
+    ov.querySelector('#mCancel').addEventListener('click', function () { closeOverlay(ov); });
+    var go = ov.querySelector('#mGo');
+    go.addEventListener('click', async function () {
+      var name = sel.value === '__c__' ? (inp.value || '').trim() : sel.value;
+      if (!name) { setStatus('请先填写库名', 'warn'); try { inp.focus(); } catch (e) { } return; }
+      go.disabled = true; go.textContent = '安装中...';
+      setPanel(true);
+      await installPkg(name);
+      go.disabled = false; go.textContent = '开始安装';
+    });
+    ov.addEventListener('click', function (e) { if (e.target === ov) { closeOverlay(ov); } });
+  }
+
+  /* ==================== 新增 2/3：虚拟盘文档扫描与读取 ==================== */
+  var DOC_EXT = ['.py', '.txt', '.csv', '.json', '.md', '.png', '.jpg', '.jpeg', '.xlsx', '.xls'];
+  var TEXT_EXT = ['.py', '.txt', '.csv', '.json', '.md'];
+  function extOf(p) {
+    var m = /\.[^.\/\\]+$/.exec(p || '');
+    return m ? m[0].toLowerCase() : '';
+  }
+  function isTextPath(p) {
+    var e = extOf(p);
+    return TEXT_EXT.indexOf(e) >= 0;
+  }
+  function fmtSize(n) {
+    if (n < 1024) { return n + ' B'; }
+    if (n < 1024 * 1024) { return (n / 1024).toFixed(1) + ' KB'; }
+    return (n / 1024 / 1024).toFixed(2) + ' MB';
+  }
+
+  /* 用 Python 侧的 os.walk 扫描虚拟盘，返回全部候选文件（按修改时间倒序） */
+  function listVFiles() {
+    if (!pyodide) { return []; }
+    var exts = JSON.stringify(DOC_EXT);
+    var code = 'import os as _o, json as _j\n' +
+      '_exts = ' + exts + '\n' +
+      '_skip = {".cache", "__pycache__", ".micropip", "site-packages", "node_modules"}\n' +
+      '_out = []\n' +
+      'for _r, _dirs, _fs in _o.walk("/home/pyodide"):\n' +
+      '    _dirs[:] = [_d for _d in _dirs if not _d.startswith(".") and _d not in _skip]\n' +
+      '    for _f in _fs:\n' +
+      '        if _o.path.splitext(_f)[1].lower() in _exts:\n' +
+      '            _p = _o.path.join(_r, _f)\n' +
+      '            try:\n' +
+      '                _out.append([_p, _o.path.getsize(_p), _o.path.getmtime(_p)])\n' +
+      '            except Exception:\n' +
+      '                pass\n' +
+      '_j.dumps(_out)';
+    var raw;
+    try { raw = pyodide.runPython(code); } catch (e) { return []; }
+    var rows;
+    try { rows = JSON.parse(raw); } catch (e2) { return []; }
+    return rows
+      .map(function (r) { return { path: r[0], size: r[1], mtime: r[2] }; })
+      .sort(function (a, b) { return (b.mtime || 0) - (a.mtime || 0); });
+  }
+
+  /* 环境刚就绪时先扫一遍，把 Python 自带模块（os.py、_pydecimal.py …）记为基线，
+     之后只把“程序自己生成/导入的”文件算作用户文件 */
+  function refreshBaseline() {
+    FILTER_BASE = {};
+    listVFiles().forEach(function (f) { FILTER_BASE[f.path] = 1; });
+    return FILTER_BASE;
+  }
+
+  function scanVFiles() {
+    return listVFiles().filter(function (f) { return !FILTER_BASE || !FILTER_BASE[f.path]; });
+  }
+
+  async function readVF(path, asText) {
+    var py = pyodide;
+    if (asText) { return await py.FS.readFile(path, { encoding: 'utf8' }); }
+    return await py.FS.readFile(path);   /* Uint8Array */
+  }
+
+  /* ==================== 新增 2：导出虚拟文件到手机 ==================== */
+  async function showExport() {
+    if (!pyodide) {
+      setStatus('请先运行一次代码，准备好 Python 环境后再导出', 'warn');
+      writeOut('[系统] 导出需要先初始化 Python 环境，请先点「▶ 运行」。\n', 'sys');
+      return;
+    }
+    var files = scanVFiles();
+    if (!files.length) {
+      setStatus('虚拟盘里还没有可导出的文件', 'warn');
+      writeOut('[系统] 虚拟盘里还没有可导出的文件（可用 open() 写一个，或先用「📥」导入文档）。\n', 'sys');
+      return;
+    }
+    var ov = document.createElement('div');
+    ov.className = 'overlay';
+    var items = files.map(function (f, i) {
+      return '<label><input type="checkbox" class="fck" data-i="' + i + '" checked>' +
+        '<span class="fmeta">' + esc(f.path) + '</span>' +
+        '<span class="fsize">' + fmtSize(f.size) + '</span></label>';
+    }).join('');
+    ov.innerHTML = '<div class="modal"><h3>📤 导出虚拟文件</h3>' +
+      '<p class="hint">勾选要导出到手机下载目录的文件（共 ' + files.length + ' 个）。</p>' +
+      '<div class="filelist" id="fList">' + items + '</div>' +
+      '<div class="mact"><button id="eAll">全选/全不选</button><button id="eCancel">取消</button>' +
+      '<button id="eGo" class="primary">导出选中文件</button></div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    var cks = Array.prototype.slice.call(ov.querySelectorAll('.fck'));
+    ov.querySelector('#eAll').addEventListener('click', function () {
+      var anyOff = cks.some(function (c) { return !c.checked; });
+      cks.forEach(function (c) { c.checked = anyOff; });
+    });
+    ov.querySelector('#eCancel').addEventListener('click', function () { closeOverlay(ov); });
+    var go = ov.querySelector('#eGo');
+    go.addEventListener('click', async function () {
+      var pick = cks.filter(function (c) { return c.checked; }).map(function (c) { return files[+c.dataset.i]; });
+      if (!pick.length) { setStatus('没有勾选任何文件', 'warn'); return; }
+      go.disabled = true; go.textContent = '导出中...';
+      setPanel(true);
+      var n = 0;
+      for (var i = 0; i < pick.length; i++) {
+        var f = pick[i];
+        try {
+          var data = await readVF(f.path, isTextPath(f.path));
+          var mime = isTextPath(f.path) ? 'text/plain;charset=utf-8' : 'application/octet-stream';
+          var blob = new Blob([data], { type: mime });
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = f.path.split('/').pop();
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(function (u) { return function () { URL.revokeObjectURL(u); }; }(a.href), 4000);
+          n++;
+          writeOut('[系统] 已导出 ' + f.path + '（' + fmtSize(f.size) + '）\n', 'ok');
+        } catch (e) {
+          writeOut('[系统] 导出失败 ' + f.path + '：' + ((e && e.message) ? e.message : e) + '\n', 'err');
+        }
+        await new Promise(function (r) { setTimeout(r, 250); });   /* 连续下载之间留点间隔 */
+      }
+      closeOverlay(ov);
+      writeOut('[系统] 已导出 ' + n + ' 个文件到手机下载目录\n', 'ok');
+      setStatus('已导出 ' + n + ' 个文件到手机下载目录', 'ok');
+    });
+    ov.addEventListener('click', function (e) { if (e.target === ov) { closeOverlay(ov); } });
+  }
+
+  /* ==================== 新增 3：只读文档视图 ==================== */
+  function showDocPick(files) {
+    var seq = ++docPickSeq;
+    var ov = document.createElement('div');
+    ov.className = 'overlay';
+    var items = files.map(function (f, i) {
+      return '<button class="mDoc" data-i="' + i + '">' + esc(f.path) +
+        '<span class="k">' + fmtSize(f.size) + '</span></button>';
+    }).join('');
+    ov.innerHTML = '<div class="modal"><h3>选择要查看的文档</h3>' +
+      '<p class="hint">虚拟盘里找到 ' + files.length + ' 个文档，点击其中一个查看（只读）。</p>' +
+      '<div class="menu">' + items + '<button id="dClose">关闭</button></div></div>';
+    document.body.appendChild(ov);
+    Array.prototype.forEach.call(ov.querySelectorAll('.mDoc'), function (b) {
+      b.addEventListener('click', function () {
+        closeOverlay(ov);
+        renderDoc(files[+b.dataset.i]);
+      });
+    });
+    ov.querySelector('#dClose').addEventListener('click', function () { closeOverlay(ov); });
+    ov.addEventListener('click', function (e) { if (e.target === ov) { closeOverlay(ov); } });
+    return seq;
+  }
+
+  async function renderDoc(f) {
+    try {
+      var data = await readVF(f.path, isTextPath(f.path));
+      var text;
+      if (isTextPath(f.path)) { text = data; }
+      else { text = '（二进制文档，不作文本预览）\n\n路径：' + f.path + '\n大小：' + fmtSize(f.size) + '\n\n可在代码里用 pandas / openpyxl 读取它。'; }
+      vtitle.textContent = f.path + '  ·  ' + fmtSize(f.size) + '  ·  只读';
+      vbody.textContent = text;
+      vbody.scrollTop = 0;
+      setStatus('正在查看 ' + f.path.split('/').pop() + '（只读）', 'ok');
+    } catch (e) {
+      vbody.textContent = '读取失败：' + ((e && e.message) ? e.message : e);
+      vtitle.textContent = f.path;
+      setStatus('读取文档失败', 'err');
+    }
+  }
+
+  function enterDocMode() {
+    app.classList.add('docmode');
+    vdoc.classList.add('show');
+    docViewActive = true;
+    var b = $('btnDoc');
+    b.textContent = '✖';
+    b.title = '退出文档视图，返回代码编辑';
+  }
+
+  function exitDocView() {
+    app.classList.remove('docmode');
+    vdoc.classList.remove('show');
+    docViewActive = false;
+    vbody.textContent = '';
+    vtitle.textContent = '文档';
+    var b = $('btnDoc');
+    b.textContent = '📄';
+    b.title = '文档：只读查看虚拟盘里的文档';
+    setTimeout(syncScroll, 0);
+  }
+
+  async function showDocView() {
+    if (docViewActive) { exitDocView(); setStatus('已返回代码编辑', 'ok'); return; }
+    if (!pyodide) {
+      setStatus('请先运行一次代码，准备好 Python 环境后再看文档', 'warn');
+      writeOut('[系统] 文档视图需要先初始化 Python 环境，请先点「▶ 运行」。\n', 'sys');
+      return;
+    }
+    var files = scanVFiles();
+    if (!files.length) {
+      setStatus('当前没有找到任何文档', 'warn');
+      writeOut('[系统] 当前没有找到任何文档（可先用「📥」导入，或运行代码生成文件）。\n', 'sys');
+      return;
+    }
+    enterDocMode();
+    if (files.length === 1) { await renderDoc(files[0]); }
+    else { showDocPick(files); }
+  }
+
+  /* ==================== 新增 4：文档导入（含 Excel） ==================== */
+  function pickExcelLib() {
+    return new Promise(function (resolve) {
+      var ov = document.createElement('div');
+      ov.className = 'overlay';
+      var opts = '<option value="pandas">pandas（表格式读取，推荐）</option>' +
+        '<option value="openpyxl">openpyxl（按单元格读取）</option>' +
+        '<option value="both">两个都装</option>' +
+        '<option value="skip">先不装，只把文件放进虚拟盘</option>';
+      ov.innerHTML = '<div class="modal"><h3>📊 这是 Excel 文件</h3>' +
+        '<p class="hint">要读取 <code>.xlsx</code> 需要先安装 pandas（依赖 openpyxl）。' +
+        '现在帮你装哪个？（同样需要联网，装完可离线用）</p>' +
+        '<select id="xLib">' + opts + '</select>' +
+        '<div class="mact"><button id="xCancel">取消导入</button><button id="xGo" class="primary">继续并安装</button></div>' +
+        '</div>';
+      document.body.appendChild(ov);
+      ov.querySelector('#xCancel').addEventListener('click', function () { closeOverlay(ov); resolve(null); });
+      var go = ov.querySelector('#xGo');
+      go.addEventListener('click', async function () {
+        var v = ov.querySelector('#xLib').value;
+        go.disabled = true; go.textContent = '安装中...';
+        var list = v === 'both' ? ['pandas', 'openpyxl'] : (v === 'skip' ? [] : [v]);
+        for (var i = 0; i < list.length; i++) { await installPkg(list[i]); }
+        closeOverlay(ov);
+        resolve(v);
+      });
+      ov.addEventListener('click', function (e) { if (e.target === ov) { closeOverlay(ov); resolve(null); } });
+    });
+  }
+
+  async function importDocFile(file) {
+    var MAX = 2 * 1024 * 1024;
+    if (file.size > MAX) {
+      writeOut('[系统] 导入失败：' + file.name + ' 大小 ' + fmtSize(file.size) + '，超过 2MB 限制。\n', 'err');
+      setStatus('导入失败：文件超过 2MB', 'err');
+      return;
+    }
+    var e = extOf(file.name);
+    var isExcel = (e === '.xlsx' || e === '.xls');
+    if (isExcel) {
+      var choice = await pickExcelLib();
+      if (choice === null) { setStatus('已取消导入', 'warn'); return; }
+    }
+    try {
+      var py = await ensurePyodide();
+      var target = '/home/pyodide/' + file.name.replace(/^.*[\\\/]/, '');
+      var buf = new Uint8Array(await file.arrayBuffer());
+      if (isExcel || !isTextPath(file.name)) {
+        py.FS.writeFile(target, buf);                       /* 二进制：图片 / Excel */
+      } else {
+        py.FS.writeFile(target, new TextDecoder('utf-8').decode(buf));   /* 文本 */
+      }
+      writeOut('[系统] 文档已成功导入，可在代码中读取：' + target + '\n', 'ok');
+      if (isExcel) {
+        writeOut('读取示例：\n' +
+          '  import pandas as pd\n' +
+          '  df = pd.read_excel("' + target + '")\n' +
+          '  print(df)\n', 'cn');
+      } else if (isTextPath(file.name)) {
+        writeOut('读取示例：open("' + target + '", encoding="utf-8").read()\n', 'cn');
+      }
+      setStatus('文档已成功导入，可在代码中读取', 'ok');
+    } catch (err) {
+      var m = (err && err.message) ? err.message : String(err);
+      writeOut('[系统] 导入失败：' + m + '\n', 'err');
+      setStatus('导入失败', 'err');
+    }
+  }
+
+  /* ==================== Pyodide 运行环境 ==================== */
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error('无法加载 ' + src + '，请检查网络连接')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function ensurePyodide() {
+    if (pyodide) { return Promise.resolve(pyodide); }
+    if (loading) { return loading; }
+    loading = (async function () {
+      setStatus('正在加载 Python 环境（首次约 10 MB，请保持联网）…', 'warn');
+      await loadScript(PY_URL + 'pyodide.js');
+      var p = await loadPyodide({ indexURL: PY_URL });
+      pyodide = p;
+      refreshBaseline();       /* 新增 2/3：把 Python 自带模块记为基线，之后只列用户自己的文件 */
+      setStatus('Python 环境已就绪（' + (p.version || '') + '）', 'ok');
+      return p;
+    })();
+    loading.catch(function () { loading = null; });
+    return loading;
+  }
+
+  /* 供 Python 端查询“是否请求停止” */
+  window.dshShouldStop = function () { return stopRequested ? true : false; };
+  /* 修改 1：Python 端 sys.stdout / sys.stderr 把每次 write 的原文（含 \n）送到这里 */
+  window.dshWrite = function (text, tag) { writeOut(text, tag === 'err' ? 'err' : null); };
+
+  /* ==================== 修改 1：input() → JS 原生 prompt + 回显 ==================== */
+  var inputSeq = 0;                     /* 本次运行中第几次 input() */
+  window.dshPromptNow = function (pyPrompt) {
+    var n = ++inputSeq;
+    var msg = '输入 #' + n + '（程序正在等待）：';
+    if (pyPrompt) { msg += '\n' + pyPrompt; }
+    var r = null;
+    try { r = window.prompt(msg, ''); } catch (e) { r = null; }
+    if (r === null || r === undefined) {
+      writeOut('(已取消输入)\n', 'err');
+      return null;                      /* Python 侧据此抛 EOFError，避免 while True 空转 */
+    }
+    r = String(r);
+    writeOut(r + '\n', 'inp');          /* 回显：淡青 #0D9488，与程序输出区分 */
+    return r;
+  };
+
+  function countInputs(code) {
+    var m = stripNonCode(code).match(/\binput\s*\(/g);
+    return m ? m.length : 0;
+  }
+
+  var GUARD_SECONDS = 15;
+
+  function buildSetup(guard) {
+    var s = '';
+    s += 'import sys as _sys, builtins as _b, asyncio as _a\n';
+    s += 'from js import dshShouldStop as _dsh_js_stop, dshWrite as _dsh_write, dshPromptNow as _dsh_prompt\n';
+    /* 修改 1：接管 sys.stdout / sys.stderr，把 print 的原始文本（含换行）逐次交给 JS，
+       不再依赖 Pyodide batched 回调对换行的处理 */
+    s += 'class _DshWriter:\n';
+    s += '    encoding = "utf-8"\n';
+    s += '    errors = "strict"\n';
+    s += '    def __init__(self, tag, fd):\n';
+    s += '        self.tag = tag\n';
+    s += '        self._fd = fd\n';
+    s += '    def write(self, text):\n';
+    s += '        text = str(text)\n';
+    s += '        if text:\n';
+    s += '            try:\n';
+    s += '                _dsh_write(text, self.tag)\n';
+    s += '            except Exception:\n';
+    s += '                pass\n';
+    s += '        return len(text)\n';
+    s += '    def writelines(self, lines):\n';
+    s += '        for line in lines:\n';
+    s += '            self.write(line)\n';
+    s += '    def flush(self):\n';
+    s += '        pass\n';
+    s += '    def isatty(self):\n';
+    s += '        return False\n';
+    s += '    def fileno(self):\n';
+    s += '        return self._fd\n';
+    s += '    def reconfigure(self, **kw):\n';
+    s += '        pass\n';
+    s += '    def close(self):\n';
+    s += '        pass\n';
+    s += '_sys.stdout = _DshWriter("out", 1)\n';
+    s += '_sys.stderr = _DshWriter("err", 2)\n';
+    /* 修改 1：input() 桥接到 JS 原生 prompt；点“取消”返回 None → 抛 EOFError */
+    s += 'def _dsh_input(prompt=""):\n';
+    s += '    if prompt:\n';
+    s += '        _sys.stdout.write(str(prompt))\n';
+    s += '        _sys.stdout.flush()\n';
+    s += '    res = _dsh_prompt(str(prompt))\n';
+    s += '    if res is None:\n';
+    s += '        raise EOFError("用户取消了输入，程序已终止")\n';
+    s += '    return str(res)\n';
+    s += '_b.input = _dsh_input\n';
+    s += 'def _dsh_should_stop():\n';
+    s += '    try:\n';
+    s += '        return bool(_dsh_js_stop())\n';
+    s += '    except Exception:\n';
+    s += '        return False\n';
+    s += '_dsh_orig_sleep = _a.sleep\n';
+    s += 'async def _dsh_sleep(delay, result=None):\n';
+    s += '    import time as _t\n';
+    s += '    try:\n';
+    s += '        total = float(delay)\n';
+    s += '    except Exception:\n';
+    s += '        return await _dsh_orig_sleep(delay, result)\n';
+    s += '    end = _t.monotonic() + total\n';
+    s += '    while True:\n';
+    s += '        if _dsh_should_stop():\n';
+    s += '            raise KeyboardInterrupt("用户强制停止运行")\n';
+    s += '        left = end - _t.monotonic()\n';
+    s += '        if left <= 0:\n';
+    s += '            break\n';
+    s += '        await _dsh_orig_sleep(left if left < 0.05 else 0.05)\n';
+    s += '    return result\n';
+    s += '_a.sleep = _dsh_sleep\n';
+    if (guard) {
+      s += 'import time as _dsh_time\n';
+      s += '_dsh_deadline = _dsh_time.monotonic() + ' + GUARD_SECONDS + '\n';
+      s += '_dsh_n = [0]\n';
+      s += 'def _dsh_trace(frame, event, arg):\n';
+      s += '    _dsh_n[0] += 1\n';
+      s += '    if _dsh_n[0] % 300 == 0:\n';
+      s += '        if _dsh_should_stop():\n';
+      s += '            raise KeyboardInterrupt("用户强制停止运行")\n';
+      s += '        if _dsh_time.monotonic() > _dsh_deadline:\n';
+      s += '            raise KeyboardInterrupt("运行超过 ' + GUARD_SECONDS + ' 秒，已自动中断（疑似无法退出的循环）")\n';
+      s += '    return _dsh_trace\n';
+      s += '_sys.settrace(_dsh_trace)\n';
+    }
+    return s;
+  }
+
+  /* 注入代码用独立文件名执行：避免它的栈帧与用户代码都用 <exec> 导致报错行号错位
+     （新加的 EOFError 就抛在注入的 _dsh_input 里） */
+  async function runSetup(py, src) {
+    var wrapped = 'import builtins as _cb\n' +
+      '_cb.exec(_cb.compile(' + JSON.stringify(src) + ', "<dsh-setup>", "exec"), globals())\n';
+    await py.runPythonAsync(wrapped);
+  }
+
+  function clearTrace(py) {
+    try { py.runPython('import sys\nsys.settrace(None)'); } catch (e) { }
+  }
+
+  function extractLine(msg) {
+    var re = /File "<exec>", line (\d+)/g, mm, last = null;
+    while ((mm = re.exec(msg)) !== null) { last = mm[1]; }
+    if (last) { return parseInt(last, 10); }
+    var m2 = /line (\d+)/.exec(msg);
+    return m2 ? parseInt(m2[1], 10) : 0;
+  }
+
+  var ERR_TABLE = {
+    SyntaxError: ['语法错误', '代码不符合 Python 语法规则。常见原因：漏了行尾冒号、括号/引号不配对、关键字拼写错误、赋值号写成 == 等。'],
+    IndentationError: ['缩进错误', '缩进层级不对：该缩进的地方没有缩进，或同一代码块内缩进空格数不一致（同一块必须完全相同）。'],
+    TabError: ['制表符错误', '代码里混用了 Tab 和空格。请统一只用空格，推荐每级 4 个空格。'],
+    NameError: ['名称错误', '使用了一个从未定义过的变量或函数名。检查是否拼错，或忘了先赋值 / 先 import。'],
+    UnboundLocalError: ['局部变量未赋值', '函数里使用了一个还没有赋值的局部变量，通常是「先使用、后赋值」或忘了初始化。'],
+    TypeError: ['类型错误', '数据类型用错了。例如字符串和数字相加、给函数传的参数个数不对、对 None 做运算。可用 int()/str() 转换类型。'],
+    ValueError: ['值错误', '数据类型是对的，但内容不合法。例如 int("abc")、列表里找不到该元素。请检查输入内容格式。'],
+    ZeroDivisionError: ['除零错误', '除数为 0。做除法前先判断除数不等于 0。'],
+    IndexError: ['索引错误', '下标超出范围。例如列表只有 3 个元素却访问 lst[5]。注意下标从 0 开始，最后一个是 len-1。'],
+    KeyError: ['键错误', '字典里没有这个键。可用 d.get(k) 取默认值，或先判断 if k in d。'],
+    AttributeError: ['属性错误', '这个对象没有该属性或方法。检查方法名是否拼错，或对象类型是否符合预期（例如对 None 取属性）。'],
+    ImportError: ['导入错误', '导入的模块或名称找不到，检查模块名拼写是否正确。'],
+    ModuleNotFoundError: ['模块未找到', '这个模块不存在或没有安装。注意 Pyodide 只内置部分标准库，第三方库需要手动加载。'],
+    FileNotFoundError: ['文件未找到', '找不到指定路径的文件。检查文件名、路径和是否有误。'],
+    FileExistsError: ['文件已存在', '要创建的文件已经存在了。'],
+    PermissionError: ['权限错误', '没有权限访问该文件或资源。'],
+    IsADirectoryError: ['目标是目录', '把一个目录当文件打开了。'],
+    OSError: ['操作系统错误', '系统层面的 I/O 操作失败，例如读写文件出错。'],
+    IOError: ['输入输出错误', '文件读写失败。'],
+    RuntimeError: ['运行时错误', '程序运行时出现的通用错误，通常由显式 raise 或环境问题引起。'],
+    RecursionError: ['递归错误', '递归调用层数太多。检查递归是否有正确的结束条件（会停下来的 base case）。'],
+    StopIteration: ['迭代停止', '迭代器已经没有元素了，不要再取下一个。'],
+    OverflowError: ['溢出错误', '数值太大，超出可表示范围。'],
+    MemoryError: ['内存不足', '内存不够用了，试试减小数据规模。'],
+    KeyboardInterrupt: ['键盘中断（已被强制停止）', '运行被用户或保护机制中断了。如果这不是你想要的，请检查代码里是否有无法退出的循环。'],
+    AssertionError: ['断言失败', 'assert 后面的条件为假。检查该处的假设是否成立。'],
+    NotImplementedError: ['尚未实现', '调用了还没有实现的方法。'],
+    EOFError: ['输入中止（EOF）', '你在输入弹窗里点了「取消」，程序按约定中止了。如果你并不想结束程序，请重新运行，并在弹窗里输入内容后点确定。'],
+    UnicodeDecodeError: ['编码解码错误', '按指定编码读取字节失败。打开文件时建议写 encoding="utf-8"。'],
+    UnicodeEncodeError: ['编码错误', '字符串无法按指定编码写出。'],
+    ArithmeticError: ['算术错误', '数学运算出错。'],
+    LookupError: ['查找错误', '索引或键查找失败。'],
+    SystemExit: ['程序退出', '代码里调用了 exit() / quit()，或 sys.exit()。程序正常结束。'],
+    Exception: ['通用异常', '程序运行时出现异常，请查看上方的原始报错信息定位问题。']
+  };
+  var ERR_ALIAS = {
+    SyntaxError: '语法错误', IndentationError: '缩进错误', TabError: 'Tab 错误', NameError: '名称错误',
+    TypeError: '类型错误', ValueError: '值错误', IndexError: '索引错误', KeyError: '键错误', AttributeError: '属性错误',
+    ZeroDivisionError: '除零错误', ImportError: '导入错误', ModuleNotFoundError: '模块未找到',
+    FileNotFoundError: '文件未找到', RuntimeError: '运行时错误', RecursionError: '递归错误',
+    OverflowError: '溢出错误', MemoryError: '内存不足', AssertionError: '断言失败', EOFError: '输入结束错误',
+    UnicodeDecodeError: '编码解码错误', StopIteration: '迭代停止', KeyboardInterrupt: '键盘中断'
+  };
+
+  function explainError(msg, lineOffset) {
+    var lines = String(msg).replace(/\s+$/, '').split('\n');
+    var head = null, detail = '', i, m;
+    for (i = lines.length - 1; i >= 0; i--) {
+      m = /^([A-Za-z_][A-Za-z0-9_.]*)\s*:\s*([\s\S]*)$/.exec(lines[i]);
+      if (!m) { m = /^([A-Za-z_][A-Za-z0-9_.]*)$/.exec(lines[i]); }
+      if (m && /(Error|Exception|Interrupt|Exit|Warning)$/.test(m[1])) {
+        head = m[1].split('.').pop();
+        detail = m[2] || '';
+        break;
+      }
+    }
+    if (!head) { return; }
+    var line = extractLine(msg) - (lineOffset || 0);
+    if (line < 1) { line = 0; }
+    var info = ERR_TABLE[head] || null;
+    var cn = info ? info[0] : '异常';
+    var why = info ? info[1] : '程序运行时出现异常，请对照上方原始报错信息检查。';
+
+    writeOut('\n──────── 中文提示 ────────\n', 'cn');
+    writeOut('异常类型：' + head + ' —— ' + cn + '\n', 'cn');
+    if (detail) { writeOut('原始信息：' + detail + '\n', 'cn'); }
+    if (line) {
+      writeOut('出错行号：第 ' + line + ' 行\n', 'cn');
+      var src = ed.value.split('\n')[line - 1];
+      if (src !== undefined) { writeOut('该行代码：' + src + '\n', 'cn'); }
+    } else if (head === 'SyntaxError' || head === 'IndentationError') {
+      writeOut('提示：语法/缩进类错误请优先检查出错行及其上一行的冒号与缩进。\n', 'cn');
+    }
+    writeOut('原因解释：' + why + '\n', 'cn');
+    if (ERR_ALIAS[head]) { writeOut('中英对照：' + head + ' → ' + ERR_ALIAS[head] + '\n', 'cn'); }
+  }
+
+  /* ==================== 修改 5：强制停止 ==================== */
+  function forceStop() {
+    if (!running) { setStatus('当前没有正在运行的代码', 'warn'); return; }
+    stopRequested = true;
+    setStatus('已请求强制停止…（等待代码让出控制权）', 'warn');
+    writeOut('\n[🛑 用户请求强制停止运行]\n', 'err');
+    writeOut('说明：若代码中有 time.sleep()（已自动改写为可中断的 await 等待）或正好在等待输入，会立即中断；' +
+      '若代码是没有任何等待的死循环，主线程被占满，只能关闭本页重新打开；' +
+      '已在保护模式下运行的代码最多 ' + GUARD_SECONDS + ' 秒后自动中断。\n', 'cn');
+  }
+  $('pstop').addEventListener('click', forceStop);
+
+  function setRunningUI(on) {
+    running = on;
+    var b1 = $('btnRun'), b2 = $('btnRunSave'), bs = $('pstop');
+    b1.disabled = on; b2.disabled = on;
+    b1.textContent = on ? '运行中…' : '▶ 运行';
+    b2.textContent = on ? '运行中…' : '💾 保存并运行';
+    bs.disabled = !on;
+    bs.style.opacity = on ? '1' : '.45';
+  }
+
+  /* ==================== 运行 ==================== */
+  async function execUser(py, prep, original) {
+    try {
+      await py.runPythonAsync(prep.code);
+      return false;
+    } catch (err) {
+      var m = (err && err.message) ? err.message : String(err);
+      if (prep.replaced && /SyntaxError/.test(m) && /await/.test(m)) {
+        writeOut('提示：time.sleep() 被改写为 await 后无法用在普通函数内部，已回退为原始代码运行（此时 sleep 会真正阻塞页面）。\n', 'cn');
+        await py.runPythonAsync(original);
+        return true;
+      }
+      throw err;
+    }
+  }
+
+  async function run() {
+    if (running) { return; }
+    var code = ed.value;
+    setPanel(true);
+    if (!code.trim()) { clearOut(); writeOut('（代码为空，无法运行）\n', 'err'); return; }
+
+    /* 静态检查 */
+    var staticErrs = checkSyntax(code);
+    if (staticErrs.length) {
+      if (!confirm('静态检查发现问题：\n' + staticErrs.slice(0, 4).join('\n') + '\n\n仍要继续运行吗？')) { return; }
+    }
+    /* 修改 7：疑似死循环检测 */
+    var risky = findRiskyLoops(code);
+    var useGuard = false;
+    if (risky.length) {
+      var goOn = await askRisky(risky.map(function (r) { return r.line; }));
+      if (!goOn) { setStatus('已取消运行（检测到可能的无限循环）', 'warn'); return; }
+      useGuard = true;
+    }
+    /* 修改 1：input() 改为运行时逐个弹出原生输入框，这里只统计数量用于提示 */
+    var nIn = countInputs(code);
+    var prep = prepareCode(code);
+
+    inputSeq = 0;
+    stopRequested = false;
+    setRunningUI(true);
+    clearOut();
+    writeOut('▶ 运行 ' + currentFileName + '\n', 'sys');
+    if (prep.replaced) {
+      writeOut('已自动把 ' + prep.count + ' 处 time.sleep() 改写为 await asyncio.sleep()（可被 🛑 停止按钮中断），并已在开头加入 import asyncio。\n', 'sys');
+    }
+    if (nIn > 0) {
+      writeOut('代码包含 ' + nIn + ' 处 input()：执行到时会弹出系统输入框；点「取消」即中止程序。\n', 'sys');
+    }
+    if (useGuard) { writeOut('已开启 ' + GUARD_SECONDS + ' 秒自动中断保护。\n', 'warn'); }
+
+    try {
+      var py = await ensurePyodide();
+      py.setStdout({ batched: function (s) { writeOut(s); } });
+      py.setStderr({ batched: function (s) { writeOut(s, 'err'); } });
+
+      await runSetup(py, buildSetup(useGuard));
+      var fellBack = await execUser(py, prep, code);
+
+      if (stopRequested) {
+        writeOut('\n[已强制停止运行]\n', 'ok');
+        setStatus('已强制停止', 'warn');
+      } else {
+        writeOut('\n[程序结束，没有错误]\n', 'ok');
+        setStatus('运行完成' + (fellBack ? '（已回退原始代码）' : ''), 'ok');
+      }
+    } catch (e) {
+      var msg = (e && e.message) ? e.message : String(e);
+      if (msg.indexOf('PythonError') === 0) { msg = msg.slice('PythonError'.length).replace(/^\s*:\s*/, ''); }
+      writeOut(msg.replace(/\s+$/, '') + '\n', 'err');
+      var stopped = /KeyboardInterrupt/.test(msg);
+      var timedOut = /自动中断/.test(msg);
+      try { explainError(msg, prep.lineOffset); } catch (e2) { }
+      if (stopped || stopRequested) {
+        writeOut('\n[已强制停止运行，界面已恢复]\n', 'ok');
+        setStatus(timedOut ? '已自动中断（疑似死循环）' : '已强制停止', 'warn');
+      } else if (/SystemExit/.test(msg)) {
+        writeOut('\n[程序已退出]\n', 'sys');
+        setStatus('程序已退出', 'warn');
+      } else {
+        setStatus('运行出错，请看输出面板', 'err');
+      }
+    } finally {
+      if (pyodide) {
+        try { pyodide.setStdout(); pyodide.setStderr(); } catch (e3) { }
+        clearTrace(pyodide);
+      }
+      clearTimeout(guardTimer);
+      stopRequested = false;
+      setRunningUI(false);
+      try { ed.focus(); } catch (e4) { }
+    }
+  }
+
+  /* 修改 4：保存并运行 */
+  async function saveAndRun() {
+    if (running) { return; }
+    var saved = false;
+    try { saved = await writeFile(false); } catch (e) { setStatus('保存失败：' + (e.message || e), 'err'); }
+    if (!saved) { setStatus('未保存，已取消运行', 'warn'); return; }
+    await run();
+  }
+
+  /* ==================== 事件绑定 ==================== */
+  $('btnRun').addEventListener('click', run);
+  $('btnRunSave').addEventListener('click', saveAndRun);
+  $('btnMenu').addEventListener('click', showMenu);
+  /* 新增 3 / 4：顶栏文档视图与导入 */
+  $('btnDoc').addEventListener('click', function () { showDocView(); });
+  $('btnImport').addEventListener('click', function () { $('docInput').click(); });
+  $('docInput').addEventListener('change', async function (e) {
+    var fs = e.target.files;
+    if (!fs || !fs.length) { return; }
+    if (importBusy) { setStatus('正在导入上一个文件，请稍候…', 'warn'); e.target.value = ''; return; }
+    importBusy = true; setPanel(true);
+    try { for (var i = 0; i < fs.length; i++) { await importDocFile(fs[i]); } }
+    finally { importBusy = false; e.target.value = ''; }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (!(e.ctrlKey || e.metaKey)) { return; }
+    var k = (e.key || '').toLowerCase();
+    if (k === 's' && e.shiftKey) { e.preventDefault(); doSaveAs(); }
+    else if (k === 's') { e.preventDefault(); doSave(); }
+    else if (k === 'o') { e.preventDefault(); doOpen(); }
+    else if (k === 'n') { e.preventDefault(); doNew(); }
+    else if (k === 'enter') { e.preventDefault(); run(); }
+  });
+
+  /* ==================== 初始化 ==================== */
+  var SAMPLE = '# 欢迎使用手机 Python 程序\n' +
+    'name = input("请输入你的名字：")\n' +
+    'print("你好，" + name + "！")\n\n' +
+    'for i in range(1, 4):\n' +
+    '    print("第", i, "行")\n';
+
+  (function init() {
+    var savedCode = localStorage.getItem(LS_CODE);
+    ed.value = (savedCode === null || savedCode === '') ? SAMPLE : savedCode;
+    if (savedCode === null) { setStatus('已载入示例代码，点「▶ 运行」试试（首次需联网）'); }
+    else { setStatus('已恢复上次编辑的内容与文件名（自动备份）'); }
+    setFname();
+    applyFont();
+    applySymVisible();
+    lastLines = 0;
+    update();
+    setPanel(false);
+    setRunningUI(false);
+  })();
+})();
+</script>
+</body>
+</html>
