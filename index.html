@@ -1055,6 +1055,7 @@ header{flex:none;display:flex;align-items:center;gap:5px;padding:6px 7px;backgro
 
   async function installPkg(name) {
     var py = await ensurePyodide();
+    await py.loadPackage('micropip');   /* 幂等兜底：已加载则立即返回，没加载则现装 */
     var log = function (t, c) { writeOut(t + '\n', c || 'sys'); };
     try {
       py.globals.set('_dsh_pkg', name);
@@ -1432,6 +1433,7 @@ header{flex:none;display:flex;align-items:center;gap:5px;padding:6px 7px;backgro
       setStatus('正在加载 Python 环境（首次约 10 MB，请保持联网）…', 'warn');
       await loadScript(PY_URL + 'pyodide.js');
       var p = await loadPyodide({ indexURL: PY_URL });
+      await p.loadPackage('micropip');   /* 第三方库安装要用，Python 侧 import micropip 才存在 */
       pyodide = p;
       refreshBaseline();       /* 新增 2/3：把 Python 自带模块记为基线，之后只列用户自己的文件 */
       setStatus('Python 环境已就绪（' + (p.version || '') + '）', 'ok');
