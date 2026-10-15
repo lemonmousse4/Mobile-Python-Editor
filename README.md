@@ -68,7 +68,9 @@ Mobile Python Editor 是一个**单文件 HTML** 应用，将完整的 Python �
 - **不支持含 C 扩展的库**：numpy、pandas 部分功能可用，但 scipy、torch 等无法安装。
 - **死循环可能卡死页面**：如写了 `while True: pass` 且无 `break`，浏览器主线程会被占满，只能关闭页面重开。程序会在运行前检测并提醒。
 - **输入弹窗为系统原生样式**：无法自定义外观，这是浏览器安全限制。
-
+- **本地版与在线版在“装库”上的区别**：
+  - **在线版（GitHub Pages）**：支持安装第三方库（numpy、pandas、jieba 等），因为浏览器允许 `https` 协议去外网下载安装包。
+  - **本地版（下载的 HTML 文件，`file:///` 协议打开）**：受限于浏览器对本地文件的严格跨域安全策略（CORS），**无法从网络下载并安装第三方库**。本地版仅适合运行 Python 标准库（如 `math`、`random`、`json` 等）或已缓存的代码。如果需要安装第三方库，请直接使用上面的在线链接。
 ## 🛠️ 技术栈
 
 - **Pyodide** — 将 CPython 编译为 WebAssembly，在浏览器中运行 Python
